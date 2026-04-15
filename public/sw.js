@@ -1,9 +1,9 @@
 const CACHE_NAME = 'coming-home-v1';
 const ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/favicon.svg',
+  './',
+  './index.html',
+  './manifest.json',
+  './favicon.svg',
 ];
 
 self.addEventListener('install', (e) => {

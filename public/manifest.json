@@ -2,7 +2,7 @@
   "name": "Coming Home",
   "short_name": "Coming Home",
   "description": "A devotional practice companion",
-  "start_url": "/",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#F7F5F0",
   "theme_color": "#F7F5F0",
