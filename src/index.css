@@ -21,12 +21,25 @@
   --font-body: 'DM Sans', -apple-system, sans-serif;
 }
 
+/* Seasonal accent — the sage shifts subtly through the year */
+:root {
+  --season-accent: #6B8F71; /* default sage */
+}
+:root[data-season="Birak"]    { --season-accent: #7B9E6D; }  /* slightly warmer */
+:root[data-season="Bunuru"]   { --season-accent: #8AA67A; }  /* warmest, drier */
+:root[data-season="Djeran"]   { --season-accent: #6B8F71; }  /* neutral sage */
+:root[data-season="Makuru"]   { --season-accent: #5A8F85; }  /* cool, water-touched */
+:root[data-season="Djilba"]   { --season-accent: #6D907B; }  /* turning toward warmth */
+:root[data-season="Kambarang"]{ --season-accent: #6F9678; }  /* bright green */
+
 html, body {
   margin: 0;
   padding: 0;
   background: #F7F5F0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
 }
 
 * {
@@ -45,3 +58,32 @@ button:active {
   width: 0;
   height: 0;
 }
+
+/* Page fade transition */
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.page-in {
+  animation: page-in 340ms cubic-bezier(0.2, 0.0, 0.2, 1);
+}
+
+/* A slow, breathing dot for loading states — matches the app's pace */
+@keyframes slow-breathe {
+  0%, 100% { opacity: 0.35; transform: scale(0.9); }
+  50%      { opacity: 0.85; transform: scale(1.1); }
+}
+
+.breathe-dot {
+  animation: slow-breathe 2.4s ease-in-out infinite;
+}
+
+/* Prevent iOS text size adjustment */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Safe area insets for iOS notch / home bar */
+.safe-top { padding-top: env(safe-area-inset-top); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }

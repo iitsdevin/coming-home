@@ -7,9 +7,16 @@ import {
   saveCoachSession,
   getCoachSessions,
   getCoachSession,
+  getTodayState,
 } from '../data/storage';
-import { getTodayState } from '../data/storage';
 import { STATES } from '../data/practices';
+
+const OPENERS = [
+  'Something\u00A0I\u2019m\u00A0sitting\u00A0with\u2026',
+  'What\u00A0came\u00A0up\u00A0in\u00A0zazen',
+  'A\u00A0pattern\u00A0I\u2019m\u00A0noticing',
+  'I\u00A0need\u00A0to\u00A0slow\u00A0down',
+];
 
 export default function CoachPage({ initialPrompt }) {
   const [apiKey, setApiKey] = useState(() => getApiKey());
@@ -24,25 +31,22 @@ export default function CoachPage({ initialPrompt }) {
   const textareaRef = useRef(null);
   const hasInitialized = useRef(false);
 
-  // Auto-scroll to bottom
+  const todayState = getTodayState();
+  const stateObj = todayState ? STATES.find((s) => s.id === todayState) : null;
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, loading]);
 
-  // Handle initial prompt from Nature tab
   useEffect(() => {
     if (initialPrompt && apiKey && !hasInitialized.current) {
       hasInitialized.current = true;
-      const todayState = getTodayState();
-      const stateLabel = todayState
-        ? STATES.find((s) => s.id === todayState)?.label
-        : null;
-      const contextMessage = stateLabel
-        ? `Today's nature prompt was: "${initialPrompt}"\n\nI checked in as: ${stateLabel}`
+      const contextMessage = stateObj
+        ? `Today's nature prompt was: "${initialPrompt}"\n\nI checked in as: ${stateObj.label}`
         : `Today's nature prompt was: "${initialPrompt}"`;
-
       sendMessage(contextMessage);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialPrompt, apiKey]);
 
   const sendMessage = async (text) => {
@@ -67,10 +71,7 @@ export default function CoachPage({ initialPrompt }) {
           model: 'claude-sonnet-4-6',
           max_tokens: 1024,
           system: COACH_SYSTEM_PROMPT,
-          messages: newMessages.map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
+          messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
         }),
       });
 
@@ -80,15 +81,10 @@ export default function CoachPage({ initialPrompt }) {
       }
 
       const data = await response.json();
-      const assistantMessage = {
-        role: 'assistant',
-        content: data.content[0].text,
-      };
-
+      const assistantMessage = { role: 'assistant', content: data.content[0].text };
       const updatedMessages = [...newMessages, assistantMessage];
       setMessages(updatedMessages);
 
-      // Save session
       const session = {
         id: sessionId || undefined,
         messages: updatedMessages,
@@ -99,10 +95,7 @@ export default function CoachPage({ initialPrompt }) {
     } catch (err) {
       setMessages((prev) => [
         ...prev,
-        {
-          role: 'assistant',
-          content: `I couldn't connect right now. ${err.message}`,
-        },
+        { role: 'assistant', content: `I couldn't connect right now. ${err.message}` },
       ]);
     } finally {
       setLoading(false);
@@ -151,79 +144,105 @@ export default function CoachPage({ initialPrompt }) {
   };
 
   const toggleHistory = () => {
-    if (!showHistory) {
-      setPastSessions(getCoachSessions());
-    }
+    if (!showHistory) setPastSessions(getCoachSessions());
     setShowHistory(!showHistory);
   };
 
-  // API key setup screen
+  // --- API key setup ---
   if (!apiKey) {
     return (
-      <div className="px-5 pt-7 pb-24">
-        <div className="mb-5">
-          <h1 className="font-display text-[28px] font-light tracking-wide text-text mb-1">
+      <div className="px-6 pt-10">
+        <div className="mb-8">
+          <h1
+            className="font-display font-light tracking-wide mb-1"
+            style={{ fontSize: '30px', color: '#3D3830', lineHeight: 1.15 }}
+          >
             Coach
           </h1>
-          <p className="font-display text-sm italic text-text-faint font-light">
+          <p className="font-display italic font-light" style={{ fontSize: '15px', color: '#8B7D6B' }}>
             a practice companion
           </p>
         </div>
 
-        <div className="bg-surface border border-border rounded-[14px] p-5 backdrop-blur-sm">
-          <p className="font-body text-[13px] text-text-muted leading-relaxed mb-4">
+        <div
+          className="rounded-[14px] p-6 backdrop-blur-sm"
+          style={{
+            background: 'rgba(255,255,255,0.6)',
+            border: '1px solid rgba(139,125,107,0.12)',
+          }}
+        >
+          <p className="font-body leading-relaxed mb-4" style={{ fontSize: '13.5px', color: '#6B6050', lineHeight: 1.7 }}>
             The coach uses the Anthropic API to have reflective conversations
-            about your practice. It's not a therapist — it's a wise friend
-            who has also sat on the cushion.
+            about your practice. Not a therapist — a wise friend who has also
+            sat on the cushion.
           </p>
-          <p className="font-body text-[13px] text-text-muted leading-relaxed mb-4">
-            To get started, enter your Anthropic API key. It's stored only
-            in your browser's local storage and sent directly to Anthropic's
-            servers — never to any third party.
+          <p className="font-body leading-relaxed mb-5" style={{ fontSize: '13.5px', color: '#6B6050', lineHeight: 1.7 }}>
+            Enter your Anthropic API key. It's stored only in your browser and
+            sent directly to Anthropic's servers — never to any third party.
           </p>
           <input
             type="password"
             value={keyInput}
             onChange={(e) => setKeyInput(e.target.value)}
             placeholder="sk-ant-..."
-            className="w-full px-4 py-3 rounded-xl font-body text-sm text-text bg-bg border border-border mb-3 outline-none focus:border-sage transition-colors"
+            className="w-full px-4 py-3 rounded-xl font-body outline-none transition-colors mb-3"
+            style={{
+              fontSize: '14px',
+              color: '#3D3830',
+              background: '#F7F5F0',
+              border: '1px solid rgba(139,125,107,0.15)',
+            }}
           />
           <button
             onClick={handleSaveKey}
-            className="w-full px-6 py-3.5 rounded-full font-body text-sm font-medium text-bg tracking-wide"
+            className="w-full px-6 py-3.5 rounded-full font-body tracking-wide"
             style={{
-              background: 'linear-gradient(135deg, #6B8F71, #5A7D60)',
+              fontSize: '13px',
+              fontWeight: 500,
+              color: '#F7F5F0',
+              background: 'linear-gradient(135deg, var(--season-accent), #5A7D60)',
             }}
           >
-            Save & Begin
+            Save & begin
           </button>
         </div>
       </div>
     );
   }
 
-  // History view
+  // --- History view ---
   if (showHistory) {
     return (
-      <div className="px-5 pt-7 pb-24">
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h1 className="font-display text-[28px] font-light tracking-wide text-text mb-1">
-              Past Sessions
-            </h1>
-          </div>
+      <div className="px-6 pt-10">
+        <div className="flex items-center justify-between mb-6">
+          <h1
+            className="font-display font-light tracking-wide"
+            style={{ fontSize: '26px', color: '#3D3830' }}
+          >
+            Past sessions
+          </h1>
           <button
             onClick={() => setShowHistory(false)}
-            className="font-body text-xs text-sage-dark px-3 py-1.5 rounded-full"
-            style={{ border: '1px solid rgba(107,143,113,0.2)' }}
+            className="font-body px-3 py-1.5 rounded-full"
+            style={{
+              fontSize: '11px',
+              color: '#5A7D60',
+              border: '1px solid rgba(107,143,113,0.2)',
+            }}
           >
             Back
           </button>
         </div>
 
         {pastSessions.length === 0 ? (
-          <div className="bg-surface border border-border rounded-[14px] p-5 text-center backdrop-blur-sm">
-            <p className="font-body text-sm text-text-faint italic">
+          <div
+            className="rounded-[14px] p-6 text-center backdrop-blur-sm"
+            style={{
+              background: 'rgba(255,255,255,0.6)',
+              border: '1px solid rgba(139,125,107,0.12)',
+            }}
+          >
+            <p className="font-display italic font-light" style={{ fontSize: '14px', color: '#8B7D6B' }}>
               No sessions yet. Start a conversation.
             </p>
           </div>
@@ -232,16 +251,23 @@ export default function CoachPage({ initialPrompt }) {
             <button
               key={session.id}
               onClick={() => loadSession(session.id)}
-              className="w-full text-left bg-surface border border-border rounded-[14px] p-4 mb-3 backdrop-blur-sm transition-all hover:bg-surface-active"
+              className="w-full text-left rounded-[14px] p-4 mb-3 backdrop-blur-sm transition-all"
+              style={{
+                background: 'rgba(255,255,255,0.6)',
+                border: '1px solid rgba(139,125,107,0.12)',
+              }}
             >
-              <div className="font-body text-xs text-text-hint mb-1">
+              <div
+                className="font-body mb-1"
+                style={{ fontSize: '11px', color: '#A09080', letterSpacing: '0.1em' }}
+              >
                 {new Date(session.date).toLocaleDateString('en-AU', {
                   weekday: 'short',
                   day: 'numeric',
                   month: 'short',
                 })}
               </div>
-              <p className="font-body text-[13px] text-text-muted line-clamp-2">
+              <p className="font-body line-clamp-2" style={{ fontSize: '13px', color: '#6B6050' }}>
                 {session.messages?.[0]?.content || 'Empty session'}
               </p>
             </button>
@@ -250,39 +276,62 @@ export default function CoachPage({ initialPrompt }) {
 
         <button
           onClick={startNewSession}
-          className="w-full mt-4 px-6 py-3.5 rounded-full font-body text-sm font-medium text-bg tracking-wide"
+          className="w-full mt-4 px-6 py-3.5 rounded-full font-body tracking-wide"
           style={{
-            background: 'linear-gradient(135deg, #6B8F71, #5A7D60)',
+            fontSize: '13px',
+            fontWeight: 500,
+            color: '#F7F5F0',
+            background: 'linear-gradient(135deg, var(--season-accent), #5A7D60)',
           }}
         >
-          New Conversation
+          New conversation
         </button>
       </div>
     );
   }
 
-  // Main chat view
+  // --- Main chat view ---
   return (
-    <div className="flex flex-col h-[calc(100vh-52px)]">
+    <div className="flex flex-col" style={{ minHeight: 'calc(100svh - 96px)' }}>
       {/* Header */}
-      <div className="px-5 pt-5 pb-3 flex items-center justify-between">
+      <div className="px-6 pt-8 pb-3 flex items-center justify-between">
         <div>
-          <h1 className="font-display text-xl font-light tracking-wide text-text">
+          <h1 className="font-display font-light tracking-wide" style={{ fontSize: '24px', color: '#3D3830' }}>
             Coach
           </h1>
+          {stateObj && messages.length === 0 && (
+            <p
+              className="font-body mt-0.5"
+              style={{ fontSize: '11px', color: '#A09080', letterSpacing: '0.08em' }}
+            >
+              arriving as · {stateObj.label.toLowerCase()}
+            </p>
+          )}
         </div>
         <div className="flex gap-2">
           <button
             onClick={toggleHistory}
-            className="font-body text-[11px] text-text-hint px-3 py-1.5 rounded-full"
-            style={{ border: '1px solid rgba(139,125,107,0.15)' }}
+            className="font-body px-3 py-1.5 rounded-full"
+            style={{
+              fontSize: '10px',
+              color: '#A09080',
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              border: '1px solid rgba(139,125,107,0.15)',
+            }}
           >
             History
           </button>
           <button
             onClick={startNewSession}
-            className="font-body text-[11px] text-sage-dark px-3 py-1.5 rounded-full"
-            style={{ border: '1px solid rgba(107,143,113,0.2)' }}
+            className="font-body px-3 py-1.5 rounded-full"
+            style={{
+              fontSize: '10px',
+              color: '#5A7D60',
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              border: '1px solid rgba(107,143,113,0.2)',
+            }}
           >
             New
           </button>
@@ -290,15 +339,40 @@ export default function CoachPage({ initialPrompt }) {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-5 pb-4">
+      <div className="flex-1 px-6 pb-4">
         {messages.length === 0 && (
-          <div className="text-center py-12">
-            <p className="font-display text-lg text-text-faint italic font-light mb-2">
-              What's arising?
+          <div className="py-10 text-center">
+            <p
+              className="font-display italic font-light mb-3"
+              style={{ fontSize: '22px', color: '#6B6050', lineHeight: 1.4 }}
+            >
+              {stateObj ? 'What\u2019s here, arriving like this?' : 'What\u2019s arising?'}
             </p>
-            <p className="font-body text-xs text-text-hint">
-              Share what's on your mind. I'm here.
+            <p
+              className="font-body italic mb-8"
+              style={{ fontSize: '12px', color: '#A09080', lineHeight: 1.7 }}
+            >
+              Speak plainly. No need to polish it.
             </p>
+
+            {/* Opener chips — to break the blank-page freeze */}
+            <div className="flex flex-wrap justify-center gap-2 px-2">
+              {OPENERS.map((opener) => (
+                <button
+                  key={opener}
+                  onClick={() => setInput(opener.replace(/\u00A0/g, ' ') + ' ')}
+                  className="font-body px-3.5 py-2 rounded-full"
+                  style={{
+                    fontSize: '12px',
+                    color: '#8B7D6B',
+                    border: '1px solid rgba(139,125,107,0.15)',
+                    background: 'rgba(255,255,255,0.5)',
+                  }}
+                >
+                  {opener.replace(/\u00A0/g, ' ')}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -309,22 +383,23 @@ export default function CoachPage({ initialPrompt }) {
           >
             <div
               className={`rounded-2xl px-4 py-3 max-w-[85%] ${
-                msg.role === 'user'
-                  ? 'rounded-br-md'
-                  : 'rounded-bl-md'
+                msg.role === 'user' ? 'rounded-br-md' : 'rounded-bl-md'
               }`}
               style={{
                 background:
                   msg.role === 'user'
-                    ? 'rgba(107,143,113,0.1)'
-                    : 'rgba(255,255,255,0.7)',
+                    ? 'rgba(107,143,113,0.10)'
+                    : 'rgba(255,255,255,0.75)',
                 border:
                   msg.role === 'user'
-                    ? '1px solid rgba(107,143,113,0.15)'
-                    : '1px solid rgba(139,125,107,0.1)',
+                    ? '1px solid rgba(107,143,113,0.18)'
+                    : '1px solid rgba(139,125,107,0.10)',
               }}
             >
-              <p className="font-body text-[13px] text-text leading-relaxed whitespace-pre-wrap">
+              <p
+                className="font-body whitespace-pre-wrap"
+                style={{ fontSize: '14px', color: '#3D3830', lineHeight: 1.65 }}
+              >
                 {msg.content}
               </p>
             </div>
@@ -334,23 +409,16 @@ export default function CoachPage({ initialPrompt }) {
         {loading && (
           <div className="mb-4">
             <div
-              className="rounded-2xl rounded-bl-md px-4 py-3 max-w-[85%] inline-block"
+              className="rounded-2xl rounded-bl-md px-5 py-4 inline-block"
               style={{
-                background: 'rgba(255,255,255,0.7)',
-                border: '1px solid rgba(139,125,107,0.1)',
+                background: 'rgba(255,255,255,0.75)',
+                border: '1px solid rgba(139,125,107,0.10)',
               }}
             >
-              <div className="flex gap-1.5 py-1">
-                <div className="w-1.5 h-1.5 rounded-full bg-text-hint animate-pulse" />
-                <div
-                  className="w-1.5 h-1.5 rounded-full bg-text-hint animate-pulse"
-                  style={{ animationDelay: '0.3s' }}
-                />
-                <div
-                  className="w-1.5 h-1.5 rounded-full bg-text-hint animate-pulse"
-                  style={{ animationDelay: '0.6s' }}
-                />
-              </div>
+              <div
+                className="breathe-dot w-2 h-2 rounded-full"
+                style={{ background: 'var(--season-accent)' }}
+              />
             </div>
           </div>
         )}
@@ -359,39 +427,54 @@ export default function CoachPage({ initialPrompt }) {
       </div>
 
       {/* Input */}
-      <div className="px-5 pb-6 pt-2">
-        <form onSubmit={handleSubmit} className="flex gap-2">
+      <div
+        className="px-6 pt-3 pb-4 sticky bottom-0"
+        style={{
+          background:
+            'linear-gradient(to top, rgba(247,245,240,0.95) 60%, rgba(247,245,240,0))',
+        }}
+      >
+        <form onSubmit={handleSubmit} className="flex gap-2 items-end">
           <textarea
             ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="What's arising?"
+            placeholder="What's here?"
             rows={1}
-            className="flex-1 px-4 py-3 rounded-2xl font-body text-sm text-text bg-surface border border-border resize-none outline-none focus:border-sage transition-colors"
-            style={{ maxHeight: 120 }}
+            className="flex-1 px-4 py-3 rounded-2xl font-body resize-none outline-none transition-colors"
+            style={{
+              fontSize: '14px',
+              color: '#3D3830',
+              background: 'rgba(255,255,255,0.7)',
+              border: '1px solid rgba(139,125,107,0.15)',
+              maxHeight: 120,
+            }}
           />
           <button
             type="submit"
             disabled={!input.trim() || loading}
-            className="self-end px-4 py-3 rounded-full font-body text-sm text-bg transition-opacity"
+            className="px-4 py-3 rounded-full font-body transition-opacity"
             style={{
-              background: 'linear-gradient(135deg, #6B8F71, #5A7D60)',
-              opacity: !input.trim() || loading ? 0.5 : 1,
+              fontSize: '16px',
+              color: '#F7F5F0',
+              background: 'linear-gradient(135deg, var(--season-accent), #5A7D60)',
+              opacity: !input.trim() || loading ? 0.4 : 1,
             }}
           >
             ↑
           </button>
         </form>
         <div className="flex justify-between items-center mt-2">
-          <p className="font-body text-[10px] text-text-hint italic">
+          <p className="font-body italic" style={{ fontSize: '10px', color: '#A09080' }}>
             Not a therapist. A practice companion.
           </p>
           <button
             onClick={handleClearKey}
-            className="font-body text-[10px] text-text-hint underline"
+            className="font-body underline"
+            style={{ fontSize: '10px', color: '#A09080' }}
           >
-            Clear API key
+            Clear key
           </button>
         </div>
       </div>

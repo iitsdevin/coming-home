@@ -4,13 +4,14 @@ import SitPage from './pages/SitPage';
 import NaturePage from './pages/NaturePage';
 import CoachPage from './pages/CoachPage';
 import RhythmPage from './pages/RhythmPage';
+import { getCurrentSeason } from './data/practices';
 
 const TABS = [
-  { id: 'today', label: 'Today' },
-  { id: 'sit', label: 'Sit' },
-  { id: 'nature', label: 'Nature' },
-  { id: 'coach', label: 'Coach' },
-  { id: 'rhythm', label: 'Rhythm' },
+  { id: 'today',  label: 'Today',  glyph: '○' },
+  { id: 'sit',    label: 'Sit',    glyph: '◯' },
+  { id: 'nature', label: 'Nature', glyph: '∿' },
+  { id: 'coach',  label: 'Coach',  glyph: '◈' },
+  { id: 'rhythm', label: 'Rhythm', glyph: '☾' },
 ];
 
 export default function App() {
@@ -20,7 +21,17 @@ export default function App() {
   // Register service worker
   useEffect(() => {
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register(import.meta.env.BASE_URL + 'sw.js').catch(() => {});
+      navigator.serviceWorker
+        .register(import.meta.env.BASE_URL + 'sw.js')
+        .catch(() => {});
+    }
+  }, []);
+
+  // Set seasonal data attribute so the CSS accent shifts with the Noongar year
+  useEffect(() => {
+    const season = getCurrentSeason();
+    if (season?.name) {
+      document.documentElement.setAttribute('data-season', season.name);
     }
   }, []);
 
@@ -35,59 +46,80 @@ export default function App() {
     window.scrollTo(0, 0);
   };
 
-  // Clear coach prompt when leaving coach tab
   const handleTabChange = (tabId) => {
-    if (tab === 'coach') setCoachPrompt(null);
+    if (tab === 'coach' && tabId !== 'coach') setCoachPrompt(null);
     handleNavigate(tabId);
   };
 
   return (
     <div
-      className="font-display min-h-screen max-w-[480px] mx-auto relative overflow-hidden"
+      className="font-display min-h-screen max-w-[480px] mx-auto relative"
       style={{
         background:
           'linear-gradient(170deg, #F7F5F0 0%, #EDE8E0 40%, #E8E4DC 100%)',
         color: '#3D3830',
       }}
     >
-      {/* Navigation */}
+      {/* Page content — keyed by tab so the fade-in re-runs on change */}
+      <main key={tab} className="page-in pb-28 safe-top">
+        {tab === 'today' && <TodayPage onNavigate={handleNavigate} />}
+        {tab === 'sit' && <SitPage />}
+        {tab === 'nature' && (
+          <NaturePage onNavigate={handleNavigate} onReflect={handleReflect} />
+        )}
+        {tab === 'coach' && <CoachPage initialPrompt={coachPrompt} />}
+        {tab === 'rhythm' && <RhythmPage />}
+      </main>
+
+      {/* Bottom navigation — thumb-friendly, out of the way of the content */}
       <nav
-        className="flex justify-center sticky top-0 z-10"
+        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-20 safe-bottom"
         style={{
-          borderBottom: '1px solid rgba(139,125,107,0.15)',
+          borderTop: '1px solid rgba(139,125,107,0.15)',
           background: 'rgba(247,245,240,0.92)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
+          backdropFilter: 'blur(14px)',
+          WebkitBackdropFilter: 'blur(14px)',
         }}
       >
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => handleTabChange(t.id)}
-            className="font-body text-xs tracking-widest uppercase py-4 px-3.5 transition-all"
-            style={{
-              fontWeight: tab === t.id ? 500 : 300,
-              color: tab === t.id ? '#5A6B52' : '#A09080',
-              borderBottom:
-                tab === t.id
-                  ? '2px solid #5A6B52'
-                  : '2px solid transparent',
-              background: 'none',
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
+        <div className="flex justify-around items-stretch">
+          {TABS.map((t) => {
+            const active = tab === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => handleTabChange(t.id)}
+                className="flex-1 flex flex-col items-center justify-center gap-1 py-3"
+                style={{ background: 'none' }}
+                aria-label={t.label}
+                aria-current={active ? 'page' : undefined}
+              >
+                <span
+                  className="text-base leading-none"
+                  style={{
+                    color: active ? 'var(--season-accent)' : '#A09080',
+                    transform: active ? 'scale(1.05)' : 'scale(1)',
+                    transition: 'color 240ms ease, transform 240ms ease',
+                  }}
+                >
+                  {t.glyph}
+                </span>
+                <span
+                  className="font-body uppercase"
+                  style={{
+                    fontSize: '9.5px',
+                    letterSpacing: '0.12em',
+                    fontWeight: active ? 500 : 300,
+                    color: active ? 'var(--season-accent)' : '#A09080',
+                    transition: 'color 240ms ease',
+                  }}
+                >
+                  {t.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </nav>
-
-      {/* Pages */}
-      {tab === 'today' && <TodayPage onNavigate={handleNavigate} />}
-      {tab === 'sit' && <SitPage />}
-      {tab === 'nature' && (
-        <NaturePage onNavigate={handleNavigate} onReflect={handleReflect} />
-      )}
-      {tab === 'coach' && <CoachPage initialPrompt={coachPrompt} />}
-      {tab === 'rhythm' && <RhythmPage />}
     </div>
   );
 }

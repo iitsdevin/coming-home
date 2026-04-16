@@ -3,6 +3,17 @@ import { DAYS, DAY_DATA, PRACTICE_DETAIL, STATES, QUOTES, getCurrentSeason } fro
 import { saveStateCheckIn, getTodayState } from '../data/storage';
 import Timer from '../components/Timer';
 
+// Map the user's state to a practice that actually meets them there.
+// Overrides the default time-of-day suggestion when a state is set.
+const STATE_TO_PRACTICE = {
+  activated: 'threshold',
+  flat:      'walk',
+  pain:      'rest',
+  foggy:     'threshold',
+  grounded:  null, // follow the day's rhythm
+  tender:    'zazen',
+};
+
 export default function TodayPage({ onNavigate }) {
   const now = new Date();
   const dayName = DAYS[now.getDay()];
@@ -25,7 +36,12 @@ export default function TodayPage({ onNavigate }) {
         ? 'Good afternoon'
         : 'Good evening';
 
+  // Pick a practice — state-aware if the user has checked in, time-aware otherwise.
   const suggestedPractice = (() => {
+    if (selectedState) {
+      const override = STATE_TO_PRACTICE[selectedState.id];
+      if (override) return PRACTICE_DETAIL[override];
+    }
     if (timeOfDay === 'morning') return PRACTICE_DETAIL.zazen;
     const eveningPractice = today.practices.find(
       (p) => p !== 'zazen' && p !== 'rest'
@@ -44,107 +60,236 @@ export default function TodayPage({ onNavigate }) {
     }
   };
 
+  const isZazen = suggestedPractice.label === 'Zazen';
+
   return (
-    <div className="px-5 pt-7 pb-24">
-      {/* Header */}
-      <div className="mb-7">
-        <h1 className="font-display text-[28px] font-light tracking-wide text-text mb-1">
+    <div className="px-6 pt-10">
+      {/* Header — softer, more breath */}
+      <div className="mb-8">
+        <h1
+          className="font-display font-light tracking-wide mb-1"
+          style={{ fontSize: '30px', color: '#3D3830', lineHeight: 1.15 }}
+        >
           {greeting}
         </h1>
-        <p className="font-display text-sm italic text-text-faint font-light">
+        <p className="font-display italic font-light" style={{ fontSize: '15px', color: '#8B7D6B' }}>
           {dayName} — {today.theme}
         </p>
-        <p className="font-body text-[11px] text-text-hint tracking-wide mt-1">
+        <p
+          className="font-body mt-1.5"
+          style={{ fontSize: '11px', color: '#A09080', letterSpacing: '0.08em' }}
+        >
           {season.name} · {season.description}
         </p>
       </div>
 
-      {/* Quote */}
-      <div className="bg-surface border border-border rounded-[14px] p-5 mb-4 backdrop-blur-sm text-center">
-        <p className="font-display text-base italic text-text-muted font-light leading-relaxed">
+      {/* Quote — no frame, just breath */}
+      <div className="mb-10 px-2">
+        <p
+          className="font-display italic font-light leading-relaxed"
+          style={{ fontSize: '17px', color: '#6B6050', lineHeight: 1.55 }}
+        >
           "{quote.text}"
         </p>
-        <span className="block mt-2 font-body text-[11px] text-text-hint tracking-wide not-italic">
+        <span
+          className="block mt-2 font-body not-italic"
+          style={{ fontSize: '11px', color: '#A09080', letterSpacing: '0.06em' }}
+        >
           — {quote.author}
         </span>
       </div>
 
-      {/* Suggested practice */}
-      <div className="mt-6">
-        <h3 className="font-body text-[11px] font-normal text-sage tracking-widest uppercase mb-2">
-          suggested now
-        </h3>
-        <div
-          className="rounded-[14px] p-5 mb-4"
+      {/* State check-in — anchored first, sets the tone */}
+      <div className="mb-8">
+        <h3
+          className="font-body mb-3"
           style={{
-            background: 'rgba(255,255,255,0.8)',
-            border: '1px solid rgba(107,143,113,0.2)',
-            boxShadow: '0 2px 20px rgba(107,143,113,0.08)',
+            fontSize: '11px',
+            color: 'var(--season-accent)',
+            letterSpacing: '0.22em',
+            textTransform: 'uppercase',
+            fontWeight: 400,
           }}
         >
-          <div className="flex items-center gap-2.5 mb-2">
-            <span className="text-xl" style={{ color: suggestedPractice.color }}>
+          how are you arriving?
+        </h3>
+        <div
+          className="rounded-[14px] p-5 backdrop-blur-sm"
+          style={{
+            background: 'rgba(255,255,255,0.6)',
+            border: '1px solid rgba(139,125,107,0.12)',
+          }}
+        >
+          <div className="flex flex-wrap gap-1.5">
+            {STATES.map((s) => {
+              const active = selectedState?.id === s.id;
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => handleStateSelect(s)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-full font-body transition-all"
+                  style={{
+                    fontSize: '12px',
+                    border: active
+                      ? `1px solid ${s.color}`
+                      : '1px solid rgba(139,125,107,0.15)',
+                    background: active ? `${s.color}15` : 'transparent',
+                    color: active ? s.color : '#8B7D6B',
+                  }}
+                >
+                  <span>{s.emoji}</span> {s.label}
+                </button>
+              );
+            })}
+          </div>
+          {selectedState && (
+            <div
+              className="mt-4 p-3.5 rounded-[10px]"
+              style={{
+                background: `${selectedState.color}08`,
+                border: `1px solid ${selectedState.color}15`,
+              }}
+            >
+              <p
+                className="font-body italic leading-relaxed"
+                style={{ fontSize: '13px', color: selectedState.color }}
+              >
+                {selectedState.suggestion}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Suggested practice — now adapts to the state above */}
+      <div className="mb-8">
+        <h3
+          className="font-body mb-3"
+          style={{
+            fontSize: '11px',
+            color: 'var(--season-accent)',
+            letterSpacing: '0.22em',
+            textTransform: 'uppercase',
+            fontWeight: 400,
+          }}
+        >
+          {selectedState ? 'for this moment' : 'suggested now'}
+        </h3>
+        <div
+          className="rounded-[14px] p-5"
+          style={{
+            background: 'rgba(255,255,255,0.8)',
+            border: `1px solid ${suggestedPractice.color}25`,
+            boxShadow: `0 2px 20px ${suggestedPractice.color}10`,
+          }}
+        >
+          <div className="flex items-baseline gap-3 mb-2">
+            <span className="text-2xl leading-none" style={{ color: suggestedPractice.color }}>
               {suggestedPractice.icon}
             </span>
             <div>
-              <div className="text-base font-normal text-text font-display">
+              <div className="font-display font-normal" style={{ fontSize: '18px', color: '#3D3830' }}>
                 {suggestedPractice.label}
               </div>
-              <div className="font-body text-xs text-text-faint">
+              <div className="font-body" style={{ fontSize: '12px', color: '#8B7D6B' }}>
                 {suggestedPractice.duration}
               </div>
             </div>
           </div>
-          <p className="font-body text-[13px] text-text-muted leading-relaxed mb-3">
+          <p
+            className="font-body leading-relaxed mb-4"
+            style={{ fontSize: '13.5px', color: '#6B6050', lineHeight: 1.6 }}
+          >
             {suggestedPractice.description}
           </p>
-          <div className="flex gap-2">
-            {suggestedPractice.label === 'Zazen' && (
-              <button
-                onClick={() => setShowTimer(!showTimer)}
-                className="px-5 py-3 rounded-full font-body text-sm font-medium text-bg tracking-wide"
-                style={{
-                  background: 'linear-gradient(135deg, #6B8F71, #5A7D60)',
-                }}
-              >
-                {showTimer ? 'Close Timer' : 'Open Timer'}
-              </button>
+          <div className="flex gap-2 flex-wrap">
+            {isZazen && (
+              <>
+                <button
+                  onClick={() => setShowTimer(!showTimer)}
+                  className="px-5 py-3 rounded-full font-body tracking-wide"
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    color: '#F7F5F0',
+                    background: `linear-gradient(135deg, ${suggestedPractice.color}, ${suggestedPractice.color}dd)`,
+                  }}
+                >
+                  {showTimer ? 'Close timer' : 'Begin timer'}
+                </button>
+                <button
+                  onClick={() => onNavigate?.('sit')}
+                  className="px-4 py-2.5 rounded-full font-body"
+                  style={{
+                    fontSize: '12px',
+                    color: '#5A7D60',
+                    border: '1px solid rgba(139,125,107,0.2)',
+                    background: 'rgba(255,255,255,0.5)',
+                  }}
+                >
+                  Full sit page
+                </button>
+              </>
             )}
-            {suggestedPractice.label === 'Zazen' && (
+            {!isZazen && suggestedPractice.label !== 'Rest' && (
               <button
-                onClick={() => onNavigate?.('sit')}
-                className="px-4 py-2.5 rounded-full font-body text-xs text-sage-dark"
+                onClick={() => onNavigate?.('nature')}
+                className="px-4 py-2.5 rounded-full font-body"
                 style={{
+                  fontSize: '12px',
+                  color: '#5A7D60',
                   border: '1px solid rgba(139,125,107,0.2)',
                   background: 'rgba(255,255,255,0.5)',
                 }}
               >
-                Full Timer
+                A prompt for going outside
               </button>
             )}
           </div>
         </div>
-        {showTimer && (
-          <div className="bg-surface border border-border rounded-[14px] p-5 -mt-2 mb-4 backdrop-blur-sm">
+        {showTimer && isZazen && (
+          <div
+            className="rounded-[14px] p-5 mt-3 backdrop-blur-sm"
+            style={{
+              background: 'rgba(255,255,255,0.6)',
+              border: '1px solid rgba(139,125,107,0.12)',
+            }}
+          >
             <Timer />
           </div>
         )}
       </div>
 
-      {/* Today's rhythm */}
-      <div className="mt-7">
-        <h3 className="font-body text-[11px] font-normal text-sage tracking-widest uppercase mb-2">
+      {/* Today's rhythm — the shape of the whole day */}
+      <div className="mb-4">
+        <h3
+          className="font-body mb-3"
+          style={{
+            fontSize: '11px',
+            color: 'var(--season-accent)',
+            letterSpacing: '0.22em',
+            textTransform: 'uppercase',
+            fontWeight: 400,
+          }}
+        >
           today's rhythm
         </h3>
-        <div className="bg-surface border border-border rounded-[14px] p-5 backdrop-blur-sm">
-          <div className="flex flex-wrap gap-1 mb-3">
+        <div
+          className="rounded-[14px] p-5 backdrop-blur-sm"
+          style={{
+            background: 'rgba(255,255,255,0.6)',
+            border: '1px solid rgba(139,125,107,0.12)',
+          }}
+        >
+          <div className="flex flex-wrap gap-1.5 mb-3">
             {today.practices.map((p) => {
               const d = PRACTICE_DETAIL[p];
               return (
                 <span
                   key={p}
-                  className="inline-block font-body text-[11px] px-3 py-1 rounded-full mr-1 mb-1"
+                  className="inline-block font-body px-3 py-1 rounded-full"
                   style={{
+                    fontSize: '11px',
                     background: `${d.color}15`,
                     color: d.color,
                     border: `1px solid ${d.color}25`,
@@ -155,54 +300,12 @@ export default function TodayPage({ onNavigate }) {
               );
             })}
           </div>
-          <p className="font-body text-[13px] italic text-text-faint leading-relaxed">
+          <p
+            className="font-body italic leading-relaxed"
+            style={{ fontSize: '13px', color: '#8B7D6B', lineHeight: 1.6 }}
+          >
             {today.note}
           </p>
-        </div>
-      </div>
-
-      {/* State check-in */}
-      <div className="mt-7">
-        <h3 className="font-body text-[11px] font-normal text-sage tracking-widest uppercase mb-2">
-          how are you arriving?
-        </h3>
-        <div className="bg-surface border border-border rounded-[14px] p-5 backdrop-blur-sm">
-          <div className="flex flex-wrap gap-1.5 mb-0">
-            {STATES.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => handleStateSelect(s)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-full font-body text-xs transition-all"
-                style={{
-                  border:
-                    selectedState?.id === s.id
-                      ? `1px solid ${s.color}`
-                      : '1px solid rgba(139,125,107,0.15)',
-                  background:
-                    selectedState?.id === s.id
-                      ? `${s.color}15`
-                      : 'transparent',
-                  color:
-                    selectedState?.id === s.id ? s.color : '#8B7D6B',
-                }}
-              >
-                <span>{s.emoji}</span> {s.label}
-              </button>
-            ))}
-          </div>
-          {selectedState && (
-            <div
-              className="mt-4 p-3.5 rounded-[10px]"
-              style={{
-                background: `${selectedState.color}08`,
-                border: `1px solid ${selectedState.color}15`,
-              }}
-            >
-              <p className="font-body text-[13px] italic leading-relaxed" style={{ color: selectedState.color }}>
-                {selectedState.suggestion}
-              </p>
-            </div>
-          )}
         </div>
       </div>
     </div>
